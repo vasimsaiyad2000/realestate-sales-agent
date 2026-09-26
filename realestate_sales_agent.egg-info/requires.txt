@@ -1,0 +1,16 @@
+alembic<2.0,>=1.13
+apscheduler<4.0,>=3.10
+asyncpg<1.0,>=0.29
+fastapi<1.0,>=0.115
+httpx<1.0,>=0.27
+openai<2.0,>=1.50
+pgvector<1.0,>=0.5
+pydantic-settings<3.0,>=2.6
+python-multipart<1.0,>=0.0.9
+sqlalchemy[asyncio]<3.0,>=2.0
+uvicorn[standard]<1.0,>=0.30
+
+[dev]
+pytest<9.0,>=8.3
+pytest-asyncio<1.0,>=0.24
+ruff<1.0,>=0.8
