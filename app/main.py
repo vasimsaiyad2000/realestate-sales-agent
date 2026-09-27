@@ -2,12 +2,10 @@ import logging
 
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
 from app.api.chat import router as chat_router
 from app.api.health import router as health_router
-from app.api.rag import router as rag_router
 from app.api.scheduler import router as scheduler_router
 from app.core.config import settings
 from app.core.logger import configure_logging
@@ -42,6 +40,5 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
 app.include_router(health_router)
-app.include_router(rag_router)
 app.include_router(scheduler_router)
 app.include_router(chat_router)

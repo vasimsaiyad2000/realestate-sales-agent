@@ -167,7 +167,9 @@ class Project(Base):
 class ProjectUnitType(Base):
     __tablename__ = "project_unit_types"
     __table_args__ = (
+        Index("idx_project_unit_types_project_id", "project_id"),
         Index("idx_project_unit_types_unit_type_id", "unit_type_id"),
+        Index("idx_project_unit_types_project_unit", "project_id", "unit_type_id"),
         {"schema": "sales-agent"},
     )
 
@@ -189,7 +191,10 @@ class ProjectUnitType(Base):
         ),
         primary_key=True,
     )
-    size_sqft: Mapped[int | None] = mapped_column(BigInteger)
+    size_sqft: Mapped[int] = mapped_column(
+        BigInteger,
+        primary_key=True,      # ← changed
+    )
     available: Mapped[bool] = mapped_column(Boolean, nullable=False)
 
 

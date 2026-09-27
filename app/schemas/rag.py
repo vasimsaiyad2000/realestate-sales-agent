@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-
+from enum import Enum
 
 class IngestChunk(BaseModel):
     content: str = Field(min_length=1)
@@ -96,3 +96,11 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     conversation_id: int
     reply: str
+    
+class QueryType(str, Enum):
+    GREETING = "greeting"
+    REAL_ESTATE = "real_estate"
+    OTHER = "other"
+    
+class QueryClassification(BaseModel):
+    query_type: QueryType

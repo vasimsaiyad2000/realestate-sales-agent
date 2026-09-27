@@ -4,31 +4,37 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "realestate-sales-agent"
-    environment: str = "development"
+    # Application
+    app_name: str
+    environment: str
 
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/realestate-sales-agent"
+    # Database
+    database_url: str
 
-    openai_api_key: str | None = None
-    openai_chat_model: str = "gpt-4o-mini"
-    openai_embedding_model: str = "text-embedding-3-small"
+    # OpenAI
+    openai_api_key: str | None
+    openai_chat_model: str
+    openai_embedding_model: str
 
-    whatsapp_app_secret: str | None = None
-    whatsapp_verify_token: str = "replace-me"
-    whatsapp_graph_version: str = "v21.0"
+    # WhatsApp
+    whatsapp_app_secret: str | None
+    whatsapp_verify_token: str
+    whatsapp_graph_version: str
 
-    google_maps_api_key: str | None = None
+    # Google Maps
+    google_maps_api_key: str | None
 
-    embedding_provider: str = "ollama"
-    embedding_dimensions: int = 768
-    ollama_base_url: str = "http://127.0.0.1:11434"
-    ollama_embedding_model: str = "nomic-embed-text"
-    nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
-    ollama_llm_model :str = "deepseek-r1:7b"
-    nvidia_api_key: str | None = None
-    nvidia_ca_bundle: str | None = None
-    nemotron_embedding_model: str = "nvidia/llama-3.2-nv-embedqa-1b-v2"
-    rag_sync_interval_seconds: int = 3600
+    # Embedding
+    embedding_provider: str
+    embedding_dimensions: int
+
+    # Ollama
+    ollama_base_url: str
+    ollama_embedding_model: str
+    ollama_llm_model: str
+
+    # RAG
+    rag_sync_interval_seconds: int
 
     model_config = SettingsConfigDict(
         env_file=".env",
