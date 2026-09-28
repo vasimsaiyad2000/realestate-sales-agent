@@ -10,11 +10,7 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str
-
-    # OpenAI
-    openai_api_key: str | None
-    openai_chat_model: str
-    openai_embedding_model: str
+    redis_url: str
 
     # WhatsApp
     whatsapp_app_secret: str | None
@@ -27,11 +23,11 @@ class Settings(BaseSettings):
     # Embedding
     embedding_provider: str
     embedding_dimensions: int
-
-    # Ollama
-    ollama_base_url: str
-    ollama_embedding_model: str
-    ollama_llm_model: str
+    
+    # Open Router and OpenAI
+    open_router_base_url : str
+    open_router_api_key : str
+    openai_embedding_model: str
 
     # RAG
     rag_sync_interval_seconds: int

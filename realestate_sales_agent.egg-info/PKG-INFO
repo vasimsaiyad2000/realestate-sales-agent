@@ -9,9 +9,11 @@ Requires-Dist: asyncpg<1.0,>=0.29
 Requires-Dist: fastapi<1.0,>=0.115
 Requires-Dist: httpx<1.0,>=0.27
 Requires-Dist: openai<2.0,>=1.50
+Requires-Dist: ollama<1.0,>=0.4
 Requires-Dist: pgvector<1.0,>=0.5
 Requires-Dist: pydantic-settings<3.0,>=2.6
 Requires-Dist: python-multipart<1.0,>=0.0.9
+Requires-Dist: redis[hiredis]<6.0,>=5.0
 Requires-Dist: sqlalchemy[asyncio]<3.0,>=2.0
 Requires-Dist: uvicorn[standard]<1.0,>=0.30
 Provides-Extra: dev

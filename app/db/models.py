@@ -38,7 +38,7 @@ class City(Base):
 
 
 class Locality(Base):
-    __tablename__ = "locality"
+    __tablename__ = "localities"
     __table_args__ = (
         UniqueConstraint("city_id", "name", name="uq_locality_city_name"),
         Index("idx_locality_city_id", "city_id"),
@@ -142,7 +142,7 @@ class Project(Base):
     )
     locality_id: Mapped[int] = mapped_column(
         ForeignKey(
-            "sales-agent.locality.id",
+            "sales-agent.localities.id",
             name="fk_projects_locality",
             ondelete="RESTRICT",
         ),
@@ -162,7 +162,7 @@ class Project(Base):
     brochure_url: Mapped[str | None] = mapped_column(Text)
     location_url: Mapped[str | None] = mapped_column(Text)
     description: Mapped[str | None] = mapped_column(Text)
-
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
 class ProjectUnitType(Base):
     __tablename__ = "project_unit_types"

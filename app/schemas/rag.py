@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from enum import Enum
 
 class IngestChunk(BaseModel):
@@ -37,11 +37,19 @@ class StructuredSearchCriteria(BaseModel):
     city: str | None = Field(default=None, min_length=1)
     locality: str | None = Field(default=None, min_length=1)
     project_type: str | None = Field(default=None, min_length=1)
-    unit_types: list[str] | None = None
+    unit_types: list[str] = Field(default_factory=list)
     budget_min: float | None = Field(default=None, ge=0)
     budget_max: float | None = Field(default=None, ge=0)
+    available_only: bool = True
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_fields(cls, values):
+        if isinstance(values, dict):
+            values["unit_types"] = values.get("unit_types") or []
 
+        return values
+    
 class QueryIntent(BaseModel):
     structured_search: bool = False
     semantic_search: bool = False
@@ -75,7 +83,7 @@ class AgentQueryRequest(BaseModel):
     tenant_id: int = Field(gt=0)
     project_id: int | None = Field(default=None, gt=0)
     query: str = Field(min_length=1)
-    criteria: StructuredSearchCriteria | None = None,
+    criteria: StructuredSearchCriteria | None = None
     limit: int = Field(default=5, ge=1, le=20)
 
 class AgentQueryAnswer(BaseModel):

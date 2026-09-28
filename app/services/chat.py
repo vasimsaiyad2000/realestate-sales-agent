@@ -1,9 +1,15 @@
 import json
 import logging
+import ollama
+
+from app.core.config import settings
+from openai import OpenAI
+
 from datetime import datetime, timezone
 from uuid import uuid4
+from app.core.redis import redis_client
+from time import perf_counter
 
-import ollama
 from sqlalchemy import select
 from typing import Optional
 from app.core.config import settings
@@ -13,10 +19,12 @@ from app.schemas.rag import (
     ChatResponse,
     StructuredSearchCriteria,
     QueryType,
-    QueryIntent
+    QueryIntent,
+    QueryClassification
 )
 from app.services.embeddings import create_embedding_provider
 from app.services.rag import RagService
+from app.services.catalog import TenantCatalogService
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +33,9 @@ class ChatService:
 
     def __init__(self, session):
         self.session = session
+        self.redis = redis_client
         self.rag = RagService(session, create_embedding_provider())
+        self.catalog = TenantCatalogService(session, self.redis)
 
     async def handle_message(self, request: ChatRequest) -> ChatResponse:
         
@@ -47,6 +57,16 @@ class ChatService:
             phone=request.customer_phone,
         )
         
+        # Ignore duplicate webhook
+        if await self.message_exists(
+            tenant.id,
+            request.provider_message_id,
+        ):
+            return ChatResponse(
+                conversation_id=conversation.id,
+                reply="",
+            )
+
         # Getting the query type classification
         query_type = await self._classify_query_type(request.message)
         logger.info("Query routed",
@@ -79,16 +99,6 @@ class ChatService:
                 ),
         )
             
-        # Ignore duplicate webhook
-        if await self.message_exists(
-            tenant.id,
-            request.provider_message_id,
-        ):
-            return ChatResponse(
-                conversation_id=conversation.id,
-                reply="",
-            )
-
         await self.save_message(
             tenant_id=tenant.id,
             conversation_id=conversation.id,
@@ -105,8 +115,28 @@ class ChatService:
         state = self.merge_state(state, intent)
         conversation.search_state = state
 
+        if self._is_broad_property_request(request.message, intent):
+            city_counts = await self.catalog.get_city_project_counts(tenant.id)
+            state["conversation_stage"] = "qualification"
+            state["pending_slot"] = "city"
+            conversation.search_state = state
+
+            reply = self._build_city_question(city_counts)
+            await self.save_message(
+                tenant_id=tenant.id,
+                conversation_id=conversation.id,
+                provider_message_id=f"assistant-{uuid4()}",
+                direction="outbound",
+                body=reply,
+            )
+            conversation.last_message_at = datetime.now(timezone.utc)
+            await self.session.commit()
+
+            return ChatResponse(conversation_id=conversation.id, reply=reply)
+
         structured_projects = []
         semantic_results = []
+        project_ids = None
 
         if intent.structured_search and intent.criteria:
             criteria = StructuredSearchCriteria(
@@ -118,27 +148,27 @@ class ChatService:
                 budget_max=state.get("budget_max"),
             )
 
-            structured_projects = await self.rag.search_projects(
+            structured_projects = await self.catalog.filter_projects(
                 tenant_id=tenant.id,
                 criteria=criteria,
                 limit=5,
             )
 
-            project_ids = [
-                p.project_id
-                for p in structured_projects
-            ]
-
-            if state.get("semantic_query") and project_ids:
-                semantic_results = await self.rag.search(
-                    tenant_id=tenant.id,
-                    query=state["semantic_query"],
-                    project_ids=project_ids,
-                    limit=5,
-                )
+            project_ids = (
+                [p.id for p in structured_projects]
+                if structured_projects else None
+            )
 
             state["candidate_project_ids"] = project_ids
             conversation.search_state = state
+
+        if intent.semantic_search and intent.semantic_query:
+            semantic_results = await self.rag.search(
+                tenant_id=tenant.id,
+                query=intent.semantic_query or request.message,
+                project_ids=project_ids,
+                limit=5,
+            )
 
         
         reply = await self.generate_reply(
@@ -164,6 +194,35 @@ class ChatService:
         return ChatResponse(
             conversation_id=conversation.id,
             reply=reply,
+        )
+
+    @staticmethod
+    def _is_broad_property_request(query: str, intent: QueryIntent) -> bool:
+        return not (intent.structured_search
+            or intent.semantic_search
+            or intent.criteria
+        )
+
+    @staticmethod
+    def _build_city_question(city_counts: dict[str, int]) -> str:
+        if not city_counts:
+            return "I can help you find a home. Which city are you interested in?"
+
+        if len(city_counts) == 1:
+            city = next(iter(city_counts))
+            return (
+                f"I can help you find a home in {city}. "
+                "Which locality or area are you interested in?"
+            )
+
+        options = ", ".join(
+            f"{city} ({count} {'project' if count == 1 else 'projects'})"
+            for city, count in city_counts.items()
+        )
+
+        return (
+            f"I can help you find a home. We have {options}. "
+            "Which city are you interested in?"
         )
 
     async def get_or_create_conversation(
@@ -318,12 +377,14 @@ class ChatService:
             )
             
             project_text += f"""
-Project: {p.project_name}
+Project: {p.name}
 City: {p.city_name}
 Locality: {p.locality_name}
+Project Type :{p.project_type_name}
 Price: {p.price_from} - {p.price_to}
 Description: {p.description}
 Units: {units_text}
+Status: {p.status}
 """
 
         for r in semantic_results:
@@ -351,16 +412,21 @@ Reply naturally in WhatsApp style.
 Do not invent any information.
 """
 
-        client = ollama.AsyncClient(
-            host=settings.ollama_base_url,
+        client = OpenAI(
+            api_key=settings.open_router_api_key,
+            base_url=settings.open_router_base_url
         )
-
-        response = await client.generate(
-            model=settings.ollama_llm_model,
-            prompt=prompt,
+            
+        response = client.chat.completions.create(
+            model="typesafe/jev-router",  # replace with the exact OpenRouter model slug
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=1000
         )
-
-        return response["response"].strip()
+         
+        raw_content = response.choices[0].message.content or ""
+        return raw_content.strip()
     
     async def _classify_real_estate_query(self, user_query: str) -> QueryIntent:
         started_at = perf_counter()
@@ -379,7 +445,7 @@ Do not invent any information.
         STRUCTURED QUERY FIELD SPECIFICATIONS:
         - `city`: Standard city name (e.g., "Ahmedabad", "Mumbai", "Bangalore").
         - `locality`: Neighborhood, area, landmark, sector, or road name (e.g., "SG Highway", "Whitefield", "Bandra", "Sector 62").
-        - `project_type`: Type of property (e.g., "Residential", "Commercial", "Villa", "Plot", "Apartment").
+        - `project_type`: Type of property (e.g., "Residential", "Commercial").
         - `unit_types`: List of unit configurations requested (e.g., ["2 BHK", "3 BHK"], "Penthouse").
             - Return a list of canonical unit type codes.
             - The user may use different wording such as "2 BHK", "2bhk", "2 bedroom", or "two bedroom".
@@ -425,7 +491,7 @@ Do not invent any information.
             "city": string or null,
             "locality": string or null,
             "project_type": string or null,
-            "unit_types": array of strings (e.g., ["1BHK", "1 Bedroom", "1 BHK"]),
+            "unit_types": array of strings or empty array (e.g., ["1BHK", "1 Bedroom", "1 BHK"]),
             "budget_min": number or null,
             "budget_max": number or null
         }} or null
@@ -457,15 +523,21 @@ Do not invent any information.
         Customer query: {user_query}
         """
         try:
-            client = ollama.AsyncClient(host=settings.ollama_base_url)
-            response = await client.generate(
-                model=settings.ollama_llm_model or "deepseek-r1:7b",
-                prompt=prompt,
-                format="json",
+            client = OpenAI(
+                api_key=settings.open_router_api_key,
+                base_url=settings.open_router_base_url
+            )
+            
+            response = client.chat.completions.create(
+                model="typesafe/jev-router",  # replace with the exact OpenRouter model slug
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=500
             )
             
             # Safely extract response body whether dictionary or object
-            raw_content = getattr(response, "response", None) or response.get("response", "")
+            raw_content = response.choices[0].message.content or ""
             logger.info("Raw intent classification response received", extra={"raw_response": raw_content})
 
             # Clean markdown wrappers if Ollama includes them
@@ -609,22 +681,23 @@ Do not invent any information.
         {user_query}
         """
 
-        try:
-            client = ollama.AsyncClient(
-                host=settings.ollama_base_url
+        logger.info("base url", extra = {"url" : settings.open_router_base_url})
+        try:    
+            client = OpenAI(
+                api_key=settings.open_router_api_key,
+                base_url=settings.open_router_base_url
             )
 
-            response = await client.generate(
-                model=settings.ollama_llm_model,
-                prompt=prompt,
-                format="json",
+            
+            response = client.chat.completions.create(
+                model="typesafe/jev-router",  # replace with the exact OpenRouter model slug
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=500
             )
 
-            raw_content = (
-                getattr(response, "response", None)
-                or response.get("response", "")
-            )
-
+            raw_content = response.choices[0].message.content or ""
             classification = QueryClassification.model_validate_json(
                 raw_content.strip()
             )

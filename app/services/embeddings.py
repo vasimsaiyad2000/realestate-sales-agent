@@ -13,7 +13,10 @@ class EmbeddingProvider(Protocol):
 
 class OpenAIEmbeddingProvider:
     def __init__(self, client: AsyncOpenAI | None = None) -> None:
-        self.client = client or AsyncOpenAI(api_key=settings.openai_api_key)
+        self.client = client or AsyncOpenAI(
+            api_key=settings.open_router_api_key,
+            base_url=settings.open_router_base_url
+        )
     
     async def embed(self, texts: Sequence[str]) -> list[list[float]]:
         if not texts:
