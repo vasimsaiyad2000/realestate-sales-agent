@@ -11,3 +11,4 @@ async def get_scheduler_status(request: Request) -> dict[str, object]:
     if scheduler is None:
         return {"running": False, "job_id": None, "next_run_time": None}
     return scheduler_status(scheduler)
+g
