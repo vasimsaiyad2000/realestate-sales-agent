@@ -13,9 +13,9 @@ class Settings(BaseSettings):
     redis_url: str
 
     # WhatsApp
-    whatsapp_app_secret: str | None
     whatsapp_verify_token: str
-    whatsapp_graph_version: str
+    whatsapp_graph_version: str = "v23.0"
+    whatsapp_token: str
 
     # Google Maps
     google_maps_api_key: str | None

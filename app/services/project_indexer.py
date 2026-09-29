@@ -31,11 +31,12 @@ class ProjectIndexer:
                 "'available',   CASE WHEN put.available = TRUE THEN 'Yes' ELSE 'No' END) "
                 "ORDER BY ut.id) FILTER (WHERE ut.id IS NOT NULL), '[]'::json) AS units "
                 'FROM "sales-agent".projects p '
-                'JOIN "sales-agent".locality l ON l.id = p.locality_id '
+                'JOIN "sales-agent".localities l ON l.id = p.locality_id '
                 'JOIN "sales-agent".cities c ON c.id = l.city_id '
                 'LEFT JOIN "sales-agent".project_types pt ON pt.id = p.project_type_id '
                 'LEFT JOIN "sales-agent".project_unit_types put ON put.project_id = p.id '
                 'LEFT JOIN "sales-agent".unit_types ut ON ut.id = put.unit_type_id '
+                'WHERE p.active IS TRUE '
                 'GROUP BY p.id, c.name, l.name, pt.name '
                 'ORDER BY p.tenant_id, p.id'
             )

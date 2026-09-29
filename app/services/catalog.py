@@ -86,7 +86,10 @@ class TenantCatalogService:
                     ut.c.id == put.c.unit_type_id,
                 )
             )
-            .where(p.c.tenant_id == tenant_id)
+            .where(
+                    p.c.tenant_id == tenant_id,
+                    p.c.active.is_(True),
+            )
             .group_by(p.c.id, c.c.id, l.c.id, pt.c.id) 
             .order_by(p.c.id)
         )

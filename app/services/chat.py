@@ -44,13 +44,12 @@ class ChatService:
         
         # 2. Check if tenant exists and is active
         if not tenant or not tenant.active:
-            return {
-                "status": "error",
-                "message": (
+            return ChatResponse(
+                reply=(
                     "This real estate company is not registered with us "
                     "or their account is currently inactive."
+                ),
             )
-        }
         
         conversation = await self.get_or_create_conversation(
             tenant_id=tenant.id,

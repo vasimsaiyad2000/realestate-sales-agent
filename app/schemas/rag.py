@@ -1,5 +1,6 @@
-from pydantic import BaseModel, Field, model_validator
 from enum import Enum
+
+from pydantic import BaseModel, Field, model_validator
 
 class IngestChunk(BaseModel):
     content: str = Field(min_length=1)
@@ -96,13 +97,13 @@ class AgentQueryResponse(BaseModel):
     projects: list[StructuredProjectResult] = Field(default_factory=list)
     
 class ChatRequest(BaseModel):
-    customer_phone: str
     whatsapp_phone_id: str  
+    customer_phone: str
     provider_message_id: str
     message: str
 
 class ChatResponse(BaseModel):
-    conversation_id: int
+    conversation_id: int | None = None
     reply: str
     
 class QueryType(str, Enum):
